@@ -17,6 +17,7 @@ files:
 icon: assets/aman-erp.ico
 asar: true
 win:
+  icon: assets/aman-erp.ico
   target:
     - target: nsis
       arch:
@@ -27,3 +28,6 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   deleteAppDataOnUninstall: false
+  installerIcon: assets/aman-erp.ico
+  uninstallerIcon: assets/aman-erp.ico
+  installerHeaderIcon: assets/aman-erp.ico

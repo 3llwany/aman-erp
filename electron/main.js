@@ -7,6 +7,7 @@ const APP_NAME = 'AMAN ERP';
 function createMainWindow() {
   const win = new BrowserWindow({
     title: APP_NAME,
+    icon: path.join(__dirname, '..', 'assets', 'aman-erp.ico'),
     width: 1440,
     height: 920,
     minWidth: 1100,

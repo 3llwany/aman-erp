@@ -38,9 +38,12 @@
       "services/**/*",
       "security/**/*",
       "backup/**/*",
+      "assets/**/*",
       "package.json"
     ],
+    "icon": "assets/aman-erp.ico",
     "win": {
+      "icon": "assets/aman-erp.ico",
       "target": [
         "nsis"
       ],
@@ -51,7 +54,10 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/aman-erp.ico",
+      "uninstallerIcon": "assets/aman-erp.ico",
+      "installerHeaderIcon": "assets/aman-erp.ico"
     }
   }
 }
