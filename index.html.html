@@ -530,6 +530,7 @@
         del: ["حذف", "Delete", "Sil", "Supprimer"],
         print: ["🖨️ طباعة", "Print", "Yazdır", "Imprimer"],
         preview: ["معاينة", "Preview", "Önizleme", "Aperçu"],
+        view: ["عرض", "View", "Görüntüle", "Voir"],
         exportX: ["⬇️ تصدير", "Export", "Dışa aktar", "Exporter"],
         close: ["إغلاق", "Close", "Kapat", "Fermer"],
         search: ["بحث...", "Search...", "Ara...", "Rechercher..."],
@@ -5655,7 +5656,7 @@ function generateInvoiceQRSvg(text) {
        (
          x,
        ) => `<tr><td>${x.id}</td><td>${x.date}</td><td>${esc(x.custName)}</td><td>${money(x.total)}</td>
- <td><button class="btn sm btnS" onclick="quoteConv('${x.id}')">${t("convert")}</button> <button class="btn sm btnD" onclick="quoteDel('${x.id}')">🗑</button></td></tr>`,
+ <td><button class="btn sm" onclick="quoteView('${x.id}')">👁️ ${t("view")}</button> <button class="btn sm btnS" onclick="quoteConv('${x.id}')">${t("convert")}</button> <button class="btn sm btnD" onclick="quoteDel('${x.id}')">🗑</button></td></tr>`,
      )
      .join("") || `<tr><td colspan=5 class="mut">${t("noData")}</td></tr>`
  }</table></div>`;
@@ -5691,7 +5692,146 @@ function generateInvoiceQRSvg(text) {
         toast(t("saved"));
         renderPage();
       }
+      function quoteView(id) {
+        const x = DB.g("quotations", []).find((z) => z.id === id);
+        if (!x) return;
+        const cust = DB.g("customers", []).find((c) => c.id === x.custId) || {};
+        const body = `
+<div style="background:#faf7f4;border:1px solid #ebdcd0;border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;">
+  <div>
+    <div style="font-size:12px;color:#8c7a6b;font-weight:700;">${t("customer")}</div>
+    <div style="font-weight:800;font-size:16px;color:#7b5738;margin-top:2px;">${esc(x.custName || "")}</div>
+    ${cust.phone ? `<div style="font-size:13px;color:#555;margin-top:4px;"><b>${t("phone")}:</b> <span dir="ltr">${esc(cust.phone)}</span></div>` : ""}
+    ${cust.vat ? `<div style="font-size:13px;color:#555;margin-top:2px;"><b>${t("vatNo")}:</b> <span dir="ltr">${esc(cust.vat)}</span></div>` : ""}
+    ${cust.address ? `<div style="font-size:13px;color:#555;margin-top:2px;"><b>${t("address")}:</b> <span>${esc(cust.address)}</span></div>` : ""}
+  </div>
+  <div style="text-align:end;">
+    <div style="font-size:12px;color:#8c7a6b;font-weight:700;">${t("code")} / ${t("date")}</div>
+    <div style="font-weight:800;font-size:16px;color:#7b5738;margin-top:2px;"><span dir="ltr">${esc(x.id)}</span></div>
+    <div style="font-size:13px;color:#555;margin-top:4px;">${esc(x.date)}</div>
+  </div>
+</div>
+
+<table class="tb2" style="width:100%;margin-bottom:16px;">
+  <thead>
+    <tr>
+      <th style="width:40px;text-align:center;">#</th>
+      <th>${t("item")}</th>
+      <th style="text-align:center;width:60px;">${t("qty")}</th>
+      <th style="text-align:end;width:90px;">${t("price")}</th>
+      <th style="text-align:center;width:65px;">${t("discount")}</th>
+      <th style="text-align:end;width:85px;">${t("vat")}</th>
+      <th style="text-align:end;width:105px;">${t("lineTotal")}</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${(x.items || []).map((it, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="font-weight:600;">${esc(it.name)}</td>
+        <td style="text-align:center;">${it.qty}</td>
+        <td style="text-align:end;">${fmt(it.price)}</td>
+        <td style="text-align:center;">${it.disc ? it.disc + "%" : "0%"}</td>
+        <td style="text-align:end;">${fmt(it.vatAmt)}</td>
+        <td style="text-align:end;font-weight:700;">${fmt(it.total)}</td>
+      </tr>
+    `).join("") || `<tr><td colspan="7" class="mut" style="text-align:center;">${t("noData")}</td></tr>`}
+  </tbody>
+</table>
+
+<div style="display:flex;justify-content:flex-end;">
+  <div style="min-width:250px;background:#fdfaf7;border:1px solid #e2d6cb;border-radius:8px;padding:12px 16px;font-size:13px;line-height:2;">
+    <div style="display:flex;justify-content:space-between;"><span>${t("subtotal")}:</span><b>${money(x.sub)}</b></div>
+    <div style="display:flex;justify-content:space-between;"><span>${t("vat")}:</span><b>${money(x.vat)}</b></div>
+    <div style="display:flex;justify-content:space-between;border-top:2px solid #7b5738;margin-top:6px;padding-top:6px;font-size:15px;color:#7b5738;">
+      <b>${t("grandTotal")}:</b><b>${money(x.total)}</b>
+    </div>
+  </div>
+</div>
+`;
+
+        const foot = `
+<button class="btn btnS" onclick="quoteConv('${x.id}')">${t("convert")}</button>
+<button class="btn" onclick="quotePrint('${x.id}')">${t("print")}</button>
+<button class="btn" onclick="xM()">${t("close")}</button>
+`;
+        modal(t("quotation") + " — " + x.id, body, foot);
+      }
+      function quotePrint(id) {
+        const x = DB.g("quotations", []).find((s) => s.id === id);
+        if (!x) return;
+        const c = comp();
+        const cust = DB.g("customers", []).find((cu) => cu.id === x.custId) || {};
+        const body = `
+<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #7b5738;padding-bottom:14px;margin-bottom:16px;">
+  <div>
+    <h2 style="margin:0 0 8px 0;color:#7b5738;font-size:22px;">${esc(c.name || "")}</h2>
+    <div style="font-size:13px;line-height:1.9;color:#4a3b32;">
+      ${c.address ? `<div><b>${t("address")}:</b> <span>${esc(c.address)}</span></div>` : ""}
+      ${c.phone ? `<div><b>${t("phone")}:</b> <span dir="ltr">${esc(c.phone)}</span></div>` : ""}
+      ${c.vatNo ? `<div><b>${t("vatNo")}:</b> <span dir="ltr">${esc(c.vatNo)}</span></div>` : ""}
+      ${c.crNo ? `<div><b>${t("crNo")}:</b> <span dir="ltr">${esc(c.crNo)}</span></div>` : ""}
+    </div>
+  </div>
+  <div style="text-align:end;">
+    <div style="background:#fdfaf7;border:1px solid #e2d6cb;border-radius:8px;padding:12px 18px;display:inline-block;text-align:start;min-width:180px;">
+      <h3 style="margin:0 0 10px 0;color:#7b5738;font-size:18px;text-align:center;border-bottom:1px solid #ebdcd0;padding-bottom:6px;">${t("quotation")}</h3>
+      <div style="font-size:13px;line-height:1.9;">
+        <div><b>${t("code")}:</b> <span dir="ltr" style="font-weight:700;color:#7b5738;">${esc(x.id)}</span></div>
+        <div><b>${t("date")}:</b> <span>${esc(x.date)}</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="background:#faf7f4;border:1px solid #ebdcd0;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:#7b5738;margin-bottom:6px;">${t("customer")}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:20px;font-size:13px;">
+    <div><b>${t("name")}:</b> <span>${esc(x.custName || "")}</span></div>
+    ${cust.vat ? `<div><b>${t("vatNo")}:</b> <span dir="ltr">${esc(cust.vat)}</span></div>` : ""}
+    ${cust.phone ? `<div><b>${t("phone")}:</b> <span dir="ltr">${esc(cust.phone)}</span></div>` : ""}
+    ${cust.address ? `<div><b>${t("address")}:</b> <span>${esc(cust.address)}</span></div>` : ""}
+  </div>
+</div>
+
+<table style="width:100%;border-collapse:collapse;margin-top:10px;">
+  <thead>
+    <tr style="background:#f2e9e1;color:#5c3e24;">
+      <th style="padding:8px 6px;border:1px solid #e2d6cb;text-align:center;width:40px;">#</th>
+      <th style="padding:8px 10px;border:1px solid #e2d6cb;">${t("item")}</th>
+      <th style="padding:8px 6px;border:1px solid #e2d6cb;text-align:center;width:60px;">${t("qty")}</th>
+      <th style="padding:8px 10px;border:1px solid #e2d6cb;text-align:end;width:90px;">${t("price")}</th>
+      <th style="padding:8px 6px;border:1px solid #e2d6cb;text-align:center;width:60px;">${t("discount")}</th>
+      <th style="padding:8px 10px;border:1px solid #e2d6cb;text-align:end;width:80px;">${t("vat")}</th>
+      <th style="padding:8px 10px;border:1px solid #e2d6cb;text-align:end;width:100px;">${t("lineTotal")}</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${(x.items || []).map((i, n) => `<tr style="background:${n % 2 === 0 ? "#fff" : "#fcfbfa"}">
+      <td style="padding:6px;border:1px solid #e2d6cb;text-align:center;">${n + 1}</td>
+      <td style="padding:6px 10px;border:1px solid #e2d6cb;font-weight:600;">${esc(i.name)}</td>
+      <td style="padding:6px;border:1px solid #e2d6cb;text-align:center;">${i.qty}</td>
+      <td style="padding:6px 10px;border:1px solid #e2d6cb;text-align:end;">${fmt(i.price)}</td>
+      <td style="padding:6px 10px;border:1px solid #e2d6cb;text-align:center;">${i.disc ? i.disc + "%" : "0%"}</td>
+      <td style="padding:6px 10px;border:1px solid #e2d6cb;text-align:end;">${fmt(i.vatAmt)}</td>
+      <td style="padding:6px 10px;border:1px solid #e2d6cb;text-align:end;font-weight:700;">${fmt(i.total)}</td>
+    </tr>`).join("")}
+  </tbody>
+</table>
+
+<div style="display:flex;justify-content:flex-end;align-items:flex-start;margin-top:20px;gap:20px;">
+  <div style="min-width:260px;background:#fdfaf7;border:1px solid #e2d6cb;border-radius:6px;padding:12px 16px;font-size:13px;line-height:2;">
+    <div style="display:flex;justify-content:space-between;"><span>${t("subtotal")}:</span><b>${money(x.sub)}</b></div>
+    <div style="display:flex;justify-content:space-between;"><span>${t("vat")}:</span><b>${money(x.vat)}</b></div>
+    <div style="display:flex;justify-content:space-between;border-top:2px solid #7b5738;margin-top:8px;padding-top:8px;font-size:16px;color:#7b5738;">
+      <b>${t("grandTotal")}:</b><b>${money(x.total)}</b>
+    </div>
+  </div>
+</div>`;
+        printDoc(t("quotation") + " " + x.id, body, false);
+      }
       function quoteConv(id) {
+        xM();
         const l = DB.g("quotations", []),
           x = l.find((z) => z.id === id);
         if (!x) return;
