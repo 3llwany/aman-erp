@@ -1,0 +1,29 @@
+appId: com.aman.erp
+productName: AMAN ERP
+executableName: AMAN ERP
+artifactName: AMAN ERP Setup.exe
+directories:
+  output: build
+files:
+  - electron/**/*
+  - index.html.html
+  - src/**/*
+  - database/**/*
+  - services/**/*
+  - security/**/*
+  - backup/**/*
+  - assets/**/*
+  - package.json
+icon: assets/aman-erp.ico
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false

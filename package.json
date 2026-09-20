@@ -1,0 +1,57 @@
+{
+  "name": "aman-erp",
+  "version": "0.1.0",
+  "description": "AMAN ERP Windows desktop application",
+  "main": "electron/main.js",
+  "author": "AMAN ERP",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "lint:syntax": "node --check electron/main.js && node --check electron/preload.js && node --check electron/security.js && node --check database/realm.js && node --check database/integrity.js && node --check database/schemas/index.js",
+    "test:realm": "node -e \"const {openRealm}=require('./database/realm'); const path=require('node:path'); openRealm({path:path.resolve('database/realm-test.realm')}).then(r=>{console.log('Realm OK:',r.schemaVersion,r.schema.length);r.close()}).catch(e=>{console.error(e);process.exit(1)})\"",
+    "build": "electron-builder --win"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "qrcode-generator": "^2.0.4",
+    "realm": "^20.1.0"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.aman.erp",
+    "productName": "AMAN ERP",
+    "executableName": "AMAN ERP",
+    "artifactName": "AMAN ERP Setup.${ext}",
+    "directories": {
+      "output": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "index.html.html",
+      "src/**/*",
+      "database/**/*",
+      "services/**/*",
+      "security/**/*",
+      "backup/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "AMAN ERP Setup.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
