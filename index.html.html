@@ -3127,6 +3127,7 @@
           custId,
           custName: cust.name,
           date,
+          createdAt: new Date().toISOString(),
           items,
           sub,
           vat,
@@ -5537,7 +5538,69 @@ var qrcode = function() {
 }));
 
 
-function generateInvoiceQRSvg(text) {
+function zatcaTlv(tag, value) {
+        const encoder = new TextEncoder();
+        const valBytes = encoder.encode(String(value ?? ""));
+        const len = valBytes.length;
+        const result = new Uint8Array(2 + len);
+        result[0] = tag;
+        result[1] = len;
+        result.set(valBytes, 2);
+        return result;
+      }
+
+      function generateZatcaBase64(params) {
+        const tags = [
+          { tag: 1, value: params.sellerName || "" },
+          { tag: 2, value: params.vatNo || "" },
+          { tag: 3, value: params.timestamp || "" },
+          { tag: 4, value: Number(params.total || 0).toFixed(2) },
+          { tag: 5, value: Number(params.vat || 0).toFixed(2) },
+        ];
+        const parts = tags.map((t) => zatcaTlv(t.tag, t.value));
+        const totalLen = parts.reduce((acc, p) => acc + p.length, 0);
+        const combined = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const p of parts) {
+          combined.set(p, offset);
+          offset += p.length;
+        }
+        let binary = "";
+        for (let i = 0; i < combined.length; i++) {
+          binary += String.fromCharCode(combined[i]);
+        }
+        return btoa(binary);
+      }
+
+      function formatZatcaTimestamp(dateStr, createdAt) {
+        if (createdAt) {
+          const d = new Date(createdAt);
+          if (!isNaN(d.getTime())) {
+            return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+          }
+        }
+        if (dateStr) {
+          if (dateStr.includes("T")) {
+            const d = new Date(dateStr);
+            if (!isNaN(d.getTime())) {
+              return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+            }
+          }
+          const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (match) {
+            const now = new Date();
+            const timePart = [
+              String(now.getHours()).padStart(2, "0"),
+              String(now.getMinutes()).padStart(2, "0"),
+              String(now.getSeconds()).padStart(2, "0"),
+            ].join(":");
+            return `${dateStr}T${timePart}Z`;
+          }
+        }
+        return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+      }
+
+      function generateInvoiceQRSvg(text) {
         if (typeof qrcode === "function") {
           try {
             if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs["UTF-8"]) {
@@ -5553,20 +5616,21 @@ function generateInvoiceQRSvg(text) {
         }
         return "";
       }
+
       function salePrint(id) {
         const x = DB.g("sales", []).find((s) => s.id === id);
         if (!x) return;
         const c = comp();
         const cust = DB.g("customers", []).find((cu) => cu.id === x.custId) || {};
-        const qrVat = cust.vat || c.vatNo || "";
-        const qrText = [
-          `${t("custName")}: ${x.custName || ""}`,
-          `${t("vatNo")}: ${qrVat}`,
-          `${t("invDate")}: ${x.date || ""}`,
-          `${t("vat")}: ${money(x.vat)}`,
-          `${t("totalWithVat")}: ${money(x.total)}`,
-        ].join("\n");
-        const qrSvg = generateInvoiceQRSvg(qrText);
+        const timestamp = formatZatcaTimestamp(x.date, x.createdAt);
+        const zatcaBase64 = generateZatcaBase64({
+          sellerName: c.name || "مؤسسة",
+          vatNo: c.vatNo || "",
+          timestamp: timestamp,
+          total: x.total,
+          vat: x.vat,
+        });
+        const qrSvg = generateInvoiceQRSvg(zatcaBase64);
         const body = `
 <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #7b5738;padding-bottom:14px;margin-bottom:16px;">
   <div>
@@ -5628,7 +5692,7 @@ function generateInvoiceQRSvg(text) {
   ${qrSvg ? `
   <div style="border:1px solid #e2d6cb;border-radius:8px;padding:10px 12px;background:#fff;display:inline-flex;flex-direction:column;align-items:center;min-width:140px;">
     <div style="width:130px;height:130px;display:flex;align-items:center;justify-content:center;">
-      ${qrSvg}
+      ${qrSvg ? qrSvg.replace("<svg ", "<svg style=\"width:100%;height:100%;display:block;\" ") : ""}
     </div>
     <div style="font-size:11px;font-weight:700;color:#7b5738;margin-top:6px;text-align:center;">QR Code</div>
   </div>` : `<div></div>`}
