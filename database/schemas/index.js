@@ -29,7 +29,7 @@ const schemas = [
     companyCode: 'string', number: 'string', accountingDate: 'date', description: 'string?',
     status: 'string', totalDebit: 'decimal128', totalCredit: 'decimal128',
     sourceType: 'string?', sourceId: 'string?', periodId: 'string?', postedBy: 'string?',
-    reversedById: 'string?', lines: 'JournalLine[]'
+    reversedById: 'string?', linesJson: 'string?'
   }),
   entity('JournalLine', {
     accountCode: 'string', accountName: 'string?', debit: 'decimal128', credit: 'decimal128',
@@ -43,9 +43,9 @@ const schemas = [
   entity('Vendor', { companyCode: 'string', number: 'string', name: 'string', vat: 'string?', phone: 'string?', address: 'string?', active: 'bool?' }),
   entity('Product', { companyCode: 'string', sku: 'string?', name: 'string', unit: 'string?', price: 'decimal128', cost: 'decimal128', quantity: 'decimal128', minQuantity: 'decimal128', warehouseId: 'string?', active: 'bool?' }),
   entity('InventoryMovement', { companyCode: 'string', productId: 'string', quantity: 'decimal128', unitCost: 'decimal128', movementType: 'string', referenceType: 'string?', referenceId: 'string?', warehouseId: 'string?', branchId: 'string?', accountingDate: 'date', userId: 'string?' }),
-  entity('SalesInvoice', { companyCode: 'string', number: 'string', customerId: 'string', accountingDate: 'date', subtotal: 'decimal128', discount: 'decimal128', tax: 'decimal128', total: 'decimal128', status: 'string', journalEntryId: 'string?', branchId: 'string?', lines: 'SalesInvoiceLine[]' }),
+  entity('SalesInvoice', { companyCode: 'string', number: 'string', customerId: 'string', accountingDate: 'date', subtotal: 'decimal128', discount: 'decimal128', tax: 'decimal128', total: 'decimal128', status: 'string', journalEntryId: 'string?', branchId: 'string?', linesJson: 'string?' }),
   entity('SalesInvoiceLine', { productId: 'string?', name: 'string', quantity: 'decimal128', unitPrice: 'decimal128', discount: 'decimal128', taxRate: 'decimal128', netAmount: 'decimal128', taxAmount: 'decimal128', total: 'decimal128' }, 'id'),
-  entity('PurchaseInvoice', { companyCode: 'string', number: 'string', vendorId: 'string', accountingDate: 'date', subtotal: 'decimal128', discount: 'decimal128', tax: 'decimal128', total: 'decimal128', status: 'string', journalEntryId: 'string?', branchId: 'string?', lines: 'PurchaseInvoiceLine[]' }),
+  entity('PurchaseInvoice', { companyCode: 'string', number: 'string', vendorId: 'string', accountingDate: 'date', subtotal: 'decimal128', discount: 'decimal128', tax: 'decimal128', total: 'decimal128', status: 'string', journalEntryId: 'string?', branchId: 'string?', linesJson: 'string?' }),
   entity('PurchaseInvoiceLine', { productId: 'string?', name: 'string', quantity: 'decimal128', unitPrice: 'decimal128', discount: 'decimal128', taxRate: 'decimal128', netAmount: 'decimal128', taxAmount: 'decimal128', total: 'decimal128' }, 'id'),
   entity('Treasury', { companyCode: 'string', number: 'string', name: 'string', currency: 'string?', balance: 'decimal128', branchId: 'string?', active: 'bool?' }),
   entity('TreasuryTransaction', { companyCode: 'string', number: 'string', treasuryId: 'string', type: 'string', amount: 'decimal128', accountingDate: 'date', referenceType: 'string?', referenceId: 'string?', contraAccountCode: 'string?', journalEntryId: 'string?', userId: 'string?' }),

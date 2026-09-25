@@ -1752,14 +1752,7 @@
                   mapped.totalDebit = item.dr ?? 0;
                   mapped.totalCredit = item.cr ?? 0;
                   mapped.status = item.status || "posted";
-                  mapped.lines = (item.lines || []).map(l => ({
-                    id: `jl_${Date.now()}_${Math.random().toString(36).substr(2,7)}`,
-                    accountCode: l.accCode || "",
-                    accountName: l.accName || "",
-                    debit: l.dr ?? 0,
-                    credit: l.cr ?? 0,
-                    description: l.desc || ""
-                  }));
+                  mapped.linesJson = JSON.stringify(item.lines || []);
                 } else if (entityName === "Product") {
                   mapped.number = item.sku || item.id || "";
                   mapped.quantity = item.qty ?? item.quantity ?? 0;
@@ -1915,14 +1908,7 @@
                         m.totalDebit = item.dr ?? 0;
                         m.totalCredit = item.cr ?? 0;
                         m.status = item.status || "posted";
-                        m.lines = (item.lines || []).map(l => ({
-                          id: `jl_${Date.now()}_${Math.random().toString(36).substr(2,7)}`,
-                          accountCode: l.accCode || "",
-                          accountName: l.accName || "",
-                          debit: l.dr ?? 0,
-                          credit: l.cr ?? 0,
-                          description: l.desc || ""
-                        }));
+                        m.linesJson = JSON.stringify(item.lines || []);
                       } else if (entityName === "Product") {
                         m.number = item.sku || item.id || "";
                         m.quantity = item.qty ?? item.quantity ?? 0;
@@ -2905,17 +2891,54 @@
               const key = stPType === "customers" ? "sales" : "purchases";
               const inv = DB.g(key, []).filter(
                 (x) => (x.custName || x.vendName) === stParty,
-              );
+              ).map(x => ({
+                id: x.id,
+                date: x.date,
+                type: stPType === "customers" ? t("sales") : t("purchases"),
+                desc: (stPType === "customers" ? "فاتورة مبيعات " : "فاتورة مشتريات ") + x.id,
+                debit: stPType === "customers" ? x.total : 0,
+                credit: stPType === "customers" ? 0 : x.total,
+                raw: x
+              }));
+
+              // Include vouchers (receipt/payment) for this party
+              const vc = DB.g("vouchers", []).filter(
+                (v) => (v.party || "").trim() === stParty.trim()
+              ).map(v => {
+                const isReceipt = v.type === "receipt";
+                return {
+                  id: v.id,
+                  date: v.date,
+                  type: isReceipt ? t("receipt") : t("payment"),
+                  desc: v.note || (isReceipt ? "سند قبض نقدي" : "سند صرف نقدي"),
+                  // For customer: sales is debit (+), receipt is credit (-)
+                  // For vendor: purchase is credit (+), payment is debit (-)
+                  debit: stPType === "customers" ? 0 : (isReceipt ? 0 : v.amount),
+                  credit: stPType === "customers" ? (isReceipt ? v.amount : 0) : 0,
+                  raw: v
+                };
+              });
+
+              // Combine and sort chronologically
+              const allTx = [...inv, ...vc].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
               let run = 0;
-              const rows = inv.map((x) => {
-                run = r2(run + x.total);
-                return `<tr>
+              const rows = allTx.map((x) => {
+                // If customer: debit increases debt, credit decreases debt
+                // If vendor: credit increases payable, debit decreases payable
+                if (stPType === "customers") {
+                  run = r2(run + x.debit - x.credit);
+                } else {
+                  run = r2(run + x.credit - x.debit);
+                }
+                const isVoucher = x.id.startsWith("RV-") || x.id.startsWith("PV-");
+                return `<tr style="${isVoucher ? "background:#f0fdf4;" : ""}">
                   <td><b>${x.id}</b></td>
                   <td>${x.date}</td>
-                  <td>${t(key)}</td>
-                  <td>${money(x.sub)}</td>
-                  <td>${money(x.vat)}</td>
-                  <td style="font-weight:700;">${money(x.total)}</td>
+                  <td><span class="bdg ${isVoucher ? "g" : "b"}">${x.type}</span></td>
+                  <td>${esc(x.desc)}</td>
+                  <td style="color:#b91c1c;font-weight:600;">${x.debit ? money(x.debit) : "—"}</td>
+                  <td style="color:#15803d;font-weight:600;">${x.credit ? money(x.credit) : "—"}</td>
                   <td style="font-weight:800;color:#7b5738;">${money(run)}</td>
                 </tr>`;
               }).join("");
@@ -2931,8 +2954,8 @@
                 </div>
                 <div style="text-align:end;">
                   <div style="font-size:12px;color:#8c7a6b;font-weight:700;">${LANG === "ar" ? "إجمالي الرصيد المستحق" : "Total Outstanding"}</div>
-                  <div style="font-size:24px;font-weight:900;color:#b91c1c;">${money(run)}</div>
-                  <div style="font-size:12px;color:#777;">${inv.length} ${t("invoices")}</div>
+                  <div style="font-size:24px;font-weight:900;color:${run > 0 ? "#b91c1c" : "#15803d"};">${money(run)}</div>
+                  <div style="font-size:12px;color:#777;">${inv.length} ${t("invoices")} | ${vc.length} ${t("vouchers")}</div>
                 </div>
               </div>
 
@@ -2942,9 +2965,9 @@
                     <th>${t("code")}</th>
                     <th>${t("date")}</th>
                     <th>${t("type")}</th>
-                    <th>${t("subtotal")}</th>
-                    <th>${t("vat")}</th>
-                    <th>${t("amount")}</th>
+                    <th>${t("desc")}</th>
+                    <th>${t("debit")} (+)</th>
+                    <th>${t("credit")} (-)</th>
                     <th>${t("balance")}</th>
                   </tr>
                 </thead>
@@ -2953,9 +2976,10 @@
                 </tbody>
                 <tfoot>
                   <tr style="font-weight:800;background:#fdfaf7;">
-                    <td colspan=5 style="text-align:start;">${t("grandTotal")}</td>
-                    <td>${money(run)}</td>
-                    <td style="color:#7b5738;font-size:15px;">${money(run)}</td>
+                    <td colspan=4 style="text-align:start;">${t("grandTotal")}</td>
+                    <td style="color:#b91c1c;">${money(allTx.reduce((s, x) => s + x.debit, 0))}</td>
+                    <td style="color:#15803d;">${money(allTx.reduce((s, x) => s + x.credit, 0))}</td>
+                    <td style="color:#7b5738;font-size:16px;">${money(run)}</td>
                   </tr>
                 </tfoot>
               </table>`;
@@ -2973,16 +2997,45 @@
         const key = stPType === "customers" ? "sales" : "purchases";
         const inv = DB.g(key, []).filter(
           (x) => (x.custName || x.vendName) === stParty,
-        );
+        ).map(x => ({
+          id: x.id,
+          date: x.date,
+          type: stPType === "customers" ? t("sales") : t("purchases"),
+          desc: (stPType === "customers" ? "فاتورة مبيعات " : "فاتورة مشتريات ") + x.id,
+          debit: stPType === "customers" ? x.total : 0,
+          credit: stPType === "customers" ? 0 : x.total
+        }));
+
+        const vc = DB.g("vouchers", []).filter(
+          (v) => (v.party || "").trim() === stParty.trim()
+        ).map(v => {
+          const isReceipt = v.type === "receipt";
+          return {
+            id: v.id,
+            date: v.date,
+            type: isReceipt ? t("receipt") : t("payment"),
+            desc: v.note || (isReceipt ? "سند قبض نقدي" : "سند صرف نقدي"),
+            debit: stPType === "customers" ? 0 : (isReceipt ? 0 : v.amount),
+            credit: stPType === "customers" ? (isReceipt ? v.amount : 0) : 0
+          };
+        });
+
+        const allTx = [...inv, ...vc].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
         let run = 0;
-        const rows = inv.map((x, idx) => {
-          run = r2(run + x.total);
+        const rows = allTx.map((x, idx) => {
+          if (stPType === "customers") {
+            run = r2(run + x.debit - x.credit);
+          } else {
+            run = r2(run + x.credit - x.debit);
+          }
           return `<tr style="background:${idx % 2 === 0 ? "#fff" : "#faf8f5"};">
             <td style="padding:8px;border:1px solid #e2d6cb;text-align:center;"><b>${x.id}</b></td>
             <td style="padding:8px;border:1px solid #e2d6cb;text-align:center;">${x.date}</td>
-            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${fmt(x.sub)}</td>
-            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${fmt(x.vat)}</td>
-            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;font-weight:700;">${fmt(x.total)}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:center;">${x.type}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;">${esc(x.desc)}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;color:#b91c1c;">${x.debit ? fmt(x.debit) : "—"}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;color:#15803d;">${x.credit ? fmt(x.credit) : "—"}</td>
             <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;font-weight:800;color:#7b5738;">${fmt(run)}</td>
           </tr>`;
         }).join("");
@@ -3000,7 +3053,7 @@
             <div style="font-size:12px;color:#8c7a6b;font-weight:bold;">${LANG === "ar" ? "تاريخ التقرير" : "Report Date"}</div>
             <div style="font-size:14px;font-weight:bold;color:#333;">${today()}</div>
             <div style="margin-top:8px;font-size:12px;color:#8c7a6b;font-weight:bold;">${LANG === "ar" ? "إجمالي الرصيد القائم" : "Total Balance"}</div>
-            <div style="font-size:20px;font-weight:bold;color:#b91c1c;">${money(run)}</div>
+            <div style="font-size:20px;font-weight:bold;color:${run > 0 ? "#b91c1c" : "#15803d"};">${money(run)}</div>
           </div>
         </div>
 
@@ -3009,19 +3062,21 @@
             <tr style="background:#f2e9e1;color:#5c3e24;">
               <th style="padding:8px;border:1px solid #e2d6cb;">${t("code")}</th>
               <th style="padding:8px;border:1px solid #e2d6cb;">${t("date")}</th>
-              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("subtotal")}</th>
-              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("vat")}</th>
-              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("amount")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;">${t("type")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;">${t("desc")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("debit")} (+)</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("credit")} (-)</th>
               <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("balance")}</th>
             </tr>
           </thead>
           <tbody>
-            ${rows || `<tr><td colspan=6 style="text-align:center;padding:14px;">${t("noData")}</td></tr>`}
+            ${rows || `<tr><td colspan=7 style="text-align:center;padding:14px;">${t("noData")}</td></tr>`}
           </tbody>
           <tfoot>
             <tr style="background:#f2e9e1;font-weight:bold;">
               <td colspan=4 style="padding:10px;border:1px solid #e2d6cb;">${t("grandTotal")}</td>
-              <td style="padding:10px;border:1px solid #e2d6cb;text-align:end;">${fmt(run)}</td>
+              <td style="padding:10px;border:1px solid #e2d6cb;text-align:end;color:#b91c1c;">${fmt(allTx.reduce((s, x) => s + x.debit, 0))}</td>
+              <td style="padding:10px;border:1px solid #e2d6cb;text-align:end;color:#15803d;">${fmt(allTx.reduce((s, x) => s + x.credit, 0))}</td>
               <td style="padding:10px;border:1px solid #e2d6cb;text-align:end;color:#7b5738;">${money(run)}</td>
             </tr>
           </tfoot>
@@ -3267,9 +3322,11 @@
       /* ---------- Customers / Vendors CRUD ---------- */
       function partyHTML(ent) {
         const list = DB.g(ent, []);
+        const isCust = ent === "customers";
         return `<div class="row" style="margin-bottom:10px"><button class="btn btnP" onclick="partyNew('${ent}')">➕ ${t("add")}</button></div>
  <div class="card"><table class="tb2"><tr><th>${t("code")}</th><th>${t("name")}</th><th>${t("vatNo")}</th><th>${t("phone")}</th><th>${t("address")}</th><th>${t("actions")}</th></tr>
  ${list.map((c) => `<tr><td><b>${c.id}</b></td><td>${esc(c.name)}</td><td><span dir="ltr">${esc(c.vat || "")}</span></td><td><span dir="ltr">${esc(c.phone || "")}</span></td><td>${esc(c.address || "")}</td><td>
+   <button class="btn sm btnP" title="${isCust ? t("receipt") : t("payment")}" onclick="vcNewForParty('${isCust ? "receipt" : "payment"}','${esc(c.name)}')">💵 ${isCust ? t("receipt") : t("payment")}</button>
    <button class="btn sm" title="${t("statement")}" onclick="stMode='pty';stPType='${ent}';stParty='${esc(c.name)}';goPage('statement')">📄 ${t("statement")}</button>
    <button class="btn sm btnS" title="${t("edit")}" onclick="partyEdit('${ent}','${c.id}')">✏️ ${t("edit")}</button>
    <button class="btn sm btnD" title="${t("delete")}" onclick="partyDel('${ent}','${c.id}')">🗑</button>
@@ -6825,16 +6882,21 @@
  ${l.map((x) => `<tr><td>${x.id}</td><td>${x.type === "receipt" ? `<span class="bdg g">${t("receipt")}</span>` : `<span class="bdg r">${t("payment")}</span>`}</td><td>${x.date}</td><td>${esc(x.party)}</td><td>${money(x.amount)}</td><td><button class="btn sm btnD" onclick="vcDel('${x.id}')">🗑</button></td></tr>`).join("") || `<tr><td colspan=6 class="mut">${t("noData")}</td></tr>`}</table></div>`;
         },
       };
-      function vcNew(type) {
+      function vcNew(type, defaultParty = "") {
+        const parties = type === "receipt" ? DB.g("customers", []) : DB.g("vendors", []);
         modal(
           t(type === "receipt" ? "receipt" : "payment"),
           `<div class="frm">
- <div class="fld"><label>${t("party")}</label><input id="vcP"></div><div class="fld"><label>${t("amount")}</label><input type="number" step="0.01" id="vcA"></div>
+ <div class="fld"><label>${t("party")}</label><input id="vcP" list="vcPartyList" value="${esc(defaultParty)}" placeholder="${LANG === 'ar' ? 'اختر أو اكتب اسم العميل/الجهة' : 'Select or type party name'}"><datalist id="vcPartyList">${parties.map(p => `<option value="${esc(p.name)}">${p.id} - ${esc(p.name)}</option>`).join("")}</datalist></div>
+ <div class="fld"><label>${t("amount")}</label><input type="number" step="0.01" id="vcA"></div>
  <div class="fld"><label>${t("contraAcc")}</label><select id="vcC">${accOpts(type === "receipt" ? "1102" : "5106")}</select></div>
  <div class="fld"><label>${t("date")}</label><input type="date" id="vcD" value="${today()}"></div>
- <div class="fld fw"><label>${t("note")}</label><input id="vcN"></div></div>`,
+ <div class="fld fw"><label>${t("note")}</label><input id="vcN" value="${defaultParty ? (type === 'receipt' ? 'سداد حساب ' : 'دفعة مورد ') + esc(defaultParty) : ''}"></div></div>`,
           `<button class="btn btnP" onclick="vcSave('${type}')">${t("save")}</button><button class="btn" onclick="xM()">${t("cancel")}</button>`,
         );
+      }
+      function vcNewForParty(type, partyName) {
+        vcNew(type, partyName);
       }
       function vcSave(type) {
         const amt = +q("vcA").value;
