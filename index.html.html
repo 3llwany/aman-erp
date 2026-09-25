@@ -2886,36 +2886,149 @@
               `<tr><td colspan=5 class="mut">${t("noData")}</td></tr>`
             }</table>`;
           } else {
-            h += `<div class="row" style="margin-bottom:8px"><select style="width:auto" onchange="stPType=this.value;stParty='';renderPage()"><option value="customers" ${stPType === "customers" ? "selected" : ""}>${t("customers")}</option><option value="vendors" ${stPType === "vendors" ? "selected" : ""}>${t("vendors")}</option></select>
-  <select style="width:auto" onchange="stParty=this.value;renderPage()"><option value="">${t("choose")}</option>${DB.g(
-    stPType,
-    [],
-  )
-    .map(
-      (c) =>
-        `<option value="${esc(c.name)}" ${stParty === c.name ? "selected" : ""}>${esc(c.name)}</option>`,
-    )
-    .join("")}</select></div>`;
+            h += `<div class="row" style="margin-bottom:12px;gap:10px">
+              <select style="width:auto" onchange="stPType=this.value;stParty='';renderPage()"><option value="customers" ${stPType === "customers" ? "selected" : ""}>${t("customers")}</option><option value="vendors" ${stPType === "vendors" ? "selected" : ""}>${t("vendors")}</option></select>
+              <select style="width:auto;min-width:220px;" onchange="stParty=this.value;renderPage()"><option value="">— ${t("choose")} —</option>${DB.g(
+                stPType,
+                [],
+              )
+                .map(
+                  (c) =>
+                    `<option value="${esc(c.name)}" ${stParty === c.name ? "selected" : ""}>${esc(c.name)} (${c.id})</option>`,
+                )
+                .join("")}</select>
+              ${stParty ? `<button class="btn btnP" onclick="printPartyStatement()">🖨️ ${t("pdf")} / ${LANG === "ar" ? "طباعة كشف الحساب" : "Print Statement"}</button>` : ""}
+            </div>`;
+
             if (stParty) {
+              const party = DB.g(stPType, []).find((p) => p.name === stParty) || {};
               const key = stPType === "customers" ? "sales" : "purchases";
               const inv = DB.g(key, []).filter(
                 (x) => (x.custName || x.vendName) === stParty,
               );
               let run = 0;
-              h += `<table class="tb2"><tr><th>${t("code")}</th><th>${t("date")}</th><th>${t("amount")}</th><th>${t("balance")}</th></tr>${
-                inv
-                  .map((x) => {
-                    run = r2(run + x.total);
-                    return `<tr><td>${x.id}</td><td>${x.date}</td><td>${money(x.total)}</td><td>${money(run)}</td></tr>`;
-                  })
-                  .join("") ||
-                `<tr><td colspan=4 class="mut">${t("noData")}</td></tr>`
-              }<tr style="font-weight:800"><td colspan=3>${t("grandTotal")}</td><td>${money(run)}</td></tr></table>`;
-            } else h += `<div class="mut">${t("choose")}</div>`;
+              const rows = inv.map((x) => {
+                run = r2(run + x.total);
+                return `<tr>
+                  <td><b>${x.id}</b></td>
+                  <td>${x.date}</td>
+                  <td>${t(key)}</td>
+                  <td>${money(x.sub)}</td>
+                  <td>${money(x.vat)}</td>
+                  <td style="font-weight:700;">${money(x.total)}</td>
+                  <td style="font-weight:800;color:#7b5738;">${money(run)}</td>
+                </tr>`;
+              }).join("");
+
+              h += `
+              <div style="background:#faf7f4;border:1px solid #ebdcd0;border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                <div>
+                  <div style="font-size:12px;color:#8c7a6b;font-weight:700;">${stPType === "customers" ? t("customer") : t("vendor")}</div>
+                  <div style="font-size:18px;font-weight:800;color:#7b5738;">${esc(party.name || stParty)} <span style="font-size:13px;font-weight:normal;color:#666;">(${party.id || ""})</span></div>
+                  ${party.phone ? `<div style="font-size:13px;color:#555;margin-top:2px;"><b>${t("phone")}:</b> <span dir="ltr">${esc(party.phone)}</span></div>` : ""}
+                  ${party.vat ? `<div style="font-size:13px;color:#555;margin-top:2px;"><b>${t("vatNo")}:</b> <span dir="ltr">${esc(party.vat)}</span></div>` : ""}
+                  ${party.address ? `<div style="font-size:13px;color:#555;margin-top:2px;"><b>${t("address")}:</b> ${esc(party.address)}</div>` : ""}
+                </div>
+                <div style="text-align:end;">
+                  <div style="font-size:12px;color:#8c7a6b;font-weight:700;">${LANG === "ar" ? "إجمالي الرصيد المستحق" : "Total Outstanding"}</div>
+                  <div style="font-size:24px;font-weight:900;color:#b91c1c;">${money(run)}</div>
+                  <div style="font-size:12px;color:#777;">${inv.length} ${t("invoices")}</div>
+                </div>
+              </div>
+
+              <table class="tb2" style="width:100%;">
+                <thead>
+                  <tr>
+                    <th>${t("code")}</th>
+                    <th>${t("date")}</th>
+                    <th>${t("type")}</th>
+                    <th>${t("subtotal")}</th>
+                    <th>${t("vat")}</th>
+                    <th>${t("amount")}</th>
+                    <th>${t("balance")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows || `<tr><td colspan=7 class="mut" style="text-align:center;padding:16px;">${t("noData")}</td></tr>`}
+                </tbody>
+                <tfoot>
+                  <tr style="font-weight:800;background:#fdfaf7;">
+                    <td colspan=5 style="text-align:start;">${t("grandTotal")}</td>
+                    <td>${money(run)}</td>
+                    <td style="color:#7b5738;font-size:15px;">${money(run)}</td>
+                  </tr>
+                </tfoot>
+              </table>`;
+            } else {
+              h += `<div class="mut" style="padding:16px;text-align:center;">👈 ${LANG === "ar" ? "يرجى اختيار عميل أو مورد لعرض كشف الحساب بالتفصيل" : "Please select a customer or vendor to view statement"}</div>`;
+            }
           }
           return h + "</div>";
         },
       };
+
+      function printPartyStatement() {
+        if (!stParty) return;
+        const party = DB.g(stPType, []).find((p) => p.name === stParty) || {};
+        const key = stPType === "customers" ? "sales" : "purchases";
+        const inv = DB.g(key, []).filter(
+          (x) => (x.custName || x.vendName) === stParty,
+        );
+        let run = 0;
+        const rows = inv.map((x, idx) => {
+          run = r2(run + x.total);
+          return `<tr style="background:${idx % 2 === 0 ? "#fff" : "#faf8f5"};">
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:center;"><b>${x.id}</b></td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:center;">${x.date}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${fmt(x.sub)}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${fmt(x.vat)}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;font-weight:700;">${fmt(x.total)}</td>
+            <td style="padding:8px;border:1px solid #e2d6cb;text-align:end;font-weight:800;color:#7b5738;">${fmt(run)}</td>
+          </tr>`;
+        }).join("");
+
+        const body = `
+        <div style="background:#faf7f4;border:1px solid #ebdcd0;border-radius:6px;padding:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:12px;color:#8c7a6b;font-weight:bold;">${stPType === "customers" ? t("customer") : t("vendor")}</div>
+            <div style="font-size:18px;font-weight:bold;color:#7b5738;margin-top:2px;">${esc(party.name || stParty)} <span style="font-size:12px;color:#666;">(${party.id || ""})</span></div>
+            ${party.phone ? `<div style="font-size:12px;color:#444;margin-top:4px;"><b>${t("phone")}:</b> <span dir="ltr">${esc(party.phone)}</span></div>` : ""}
+            ${party.vat ? `<div style="font-size:12px;color:#444;"><b>${t("vatNo")}:</b> <span dir="ltr">${esc(party.vat)}</span></div>` : ""}
+            ${party.address ? `<div style="font-size:12px;color:#444;"><b>${t("address")}:</b> ${esc(party.address)}</div>` : ""}
+          </div>
+          <div style="text-align:end;">
+            <div style="font-size:12px;color:#8c7a6b;font-weight:bold;">${LANG === "ar" ? "تاريخ التقرير" : "Report Date"}</div>
+            <div style="font-size:14px;font-weight:bold;color:#333;">${today()}</div>
+            <div style="margin-top:8px;font-size:12px;color:#8c7a6b;font-weight:bold;">${LANG === "ar" ? "إجمالي الرصيد القائم" : "Total Balance"}</div>
+            <div style="font-size:20px;font-weight:bold;color:#b91c1c;">${money(run)}</div>
+          </div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+          <thead>
+            <tr style="background:#f2e9e1;color:#5c3e24;">
+              <th style="padding:8px;border:1px solid #e2d6cb;">${t("code")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;">${t("date")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("subtotal")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("vat")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("amount")}</th>
+              <th style="padding:8px;border:1px solid #e2d6cb;text-align:end;">${t("balance")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || `<tr><td colspan=6 style="text-align:center;padding:14px;">${t("noData")}</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f2e9e1;font-weight:bold;">
+              <td colspan=4 style="padding:10px;border:1px solid #e2d6cb;">${t("grandTotal")}</td>
+              <td style="padding:10px;border:1px solid #e2d6cb;text-align:end;">${fmt(run)}</td>
+              <td style="padding:10px;border:1px solid #e2d6cb;text-align:end;color:#7b5738;">${money(run)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        `;
+        printDoc((LANG === "ar" ? "كشف حساب عميل" : "Customer Statement") + " — " + stParty, body, true);
+      }
 
       /* ---------- Financial statements engine ---------- */
       function getBSData() {
@@ -3154,9 +3267,13 @@
       /* ---------- Customers / Vendors CRUD ---------- */
       function partyHTML(ent) {
         const list = DB.g(ent, []);
-        return `<div class="row" style="margin-bottom:10px"><button class="btn btnP" onclick="partyNew('${ent}')">${t("add")}</button></div>
+        return `<div class="row" style="margin-bottom:10px"><button class="btn btnP" onclick="partyNew('${ent}')">➕ ${t("add")}</button></div>
  <div class="card"><table class="tb2"><tr><th>${t("code")}</th><th>${t("name")}</th><th>${t("vatNo")}</th><th>${t("phone")}</th><th>${t("address")}</th><th>${t("actions")}</th></tr>
- ${list.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.vat || "")}</td><td>${esc(c.phone || "")}</td><td>${esc(c.address || "")}</td><td><button class="btn sm btnD" onclick="partyDel('${ent}','${c.id}')">🗑</button></td></tr>`).join("") || `<tr><td colspan=6 class="mut">${t("noData")}</td></tr>`}</table></div>`;
+ ${list.map((c) => `<tr><td><b>${c.id}</b></td><td>${esc(c.name)}</td><td><span dir="ltr">${esc(c.vat || "")}</span></td><td><span dir="ltr">${esc(c.phone || "")}</span></td><td>${esc(c.address || "")}</td><td>
+   <button class="btn sm" title="${t("statement")}" onclick="stMode='pty';stPType='${ent}';stParty='${esc(c.name)}';goPage('statement')">📄 ${t("statement")}</button>
+   <button class="btn sm btnS" title="${t("edit")}" onclick="partyEdit('${ent}','${c.id}')">✏️ ${t("edit")}</button>
+   <button class="btn sm btnD" title="${t("delete")}" onclick="partyDel('${ent}','${c.id}')">🗑</button>
+ </td></tr>`).join("") || `<tr><td colspan=6 class="mut">${t("noData")}</td></tr>`}</table></div>`;
       }
       PG.customers = {
         k: "customers",
@@ -3177,16 +3294,36 @@
           `<button class="btn btnP" onclick="partySave('${ent}')">${t("save")}</button><button class="btn" onclick="xM()">${t("cancel")}</button>`,
         );
       }
-      function partySave(ent) {
+      function partyEdit(ent, id) {
+        const item = DB.g(ent, []).find((x) => x.id === id);
+        if (!item) return;
+        modal(
+          t("edit") + " — " + item.id,
+          `<div class="frm"><div class="fld"><label>${t("name")}</label><input id="pName" value="${esc(item.name || "")}"></div><div class="fld"><label>${t("vatNo")}</label><input id="pVat" value="${esc(item.vat || "")}"></div><div class="fld"><label>${t("phone")}</label><input id="pPh" value="${esc(item.phone || "")}"></div><div class="fld fw"><label>${t("address")}</label><input id="pAd" value="${esc(item.address || "")}"></div></div>`,
+          `<button class="btn btnP" onclick="partySave('${ent}','${id}')">${t("save")}</button><button class="btn" onclick="xM()">${t("cancel")}</button>`,
+        );
+      }
+      function partySave(ent, editId) {
         const l = DB.g(ent, []);
-        if (!q("pName").value) return toast(t("noData"), 1);
-        l.push({
-          id: nextId(ent === "customers" ? "C-" : "V-", l, 4),
-          name: q("pName").value,
-          vat: q("pVat").value,
-          phone: q("pPh").value,
-          address: q("pAd").value,
-        });
+        const name = q("pName").value.trim();
+        if (!name) return toast(t("noData"), 1);
+        if (editId) {
+          const item = l.find((x) => x.id === editId);
+          if (item) {
+            item.name = name;
+            item.vat = q("pVat").value.trim();
+            item.phone = q("pPh").value.trim();
+            item.address = q("pAd").value.trim();
+          }
+        } else {
+          l.push({
+            id: nextId(ent === "customers" ? "C-" : "V-", l, 4),
+            name,
+            vat: q("pVat").value.trim(),
+            phone: q("pPh").value.trim(),
+            address: q("pAd").value.trim(),
+          });
+        }
         DB.s(ent, l);
         xM();
         toast(t("saved"));
