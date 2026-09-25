@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const Realm = require('realm');
 const { schemas } = require('./schemas');
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 const DATABASE_NAME = 'ghallab-erp.realm';
 
 function getDataDirectory() {
@@ -26,10 +26,7 @@ function getRealmConfiguration(overrides = {}) {
     schema: schemas,
     schemaVersion: CURRENT_SCHEMA_VERSION,
     migration: (oldRealm, newRealm) => {
-      if (oldRealm.schemaVersion < 1) {
-        // Version 1 introduces the complete canonical schema. Existing legacy
-        // data is imported by the dedicated migration engine, not guessed here.
-      }
+      // Automatic migration when schema changes
     },
     ...overrides
   };

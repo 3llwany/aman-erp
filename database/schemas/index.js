@@ -65,7 +65,17 @@ const schemas = [
   entity('DocumentSequence', { companyCode: 'string', documentType: 'string', prefix: 'string', nextNumber: 'int', width: 'int' }),
   entity('AccountingPeriod', { companyCode: 'string', name: 'string', startDate: 'date', endDate: 'date', status: 'string', closedAt: 'date?', closedBy: 'string?' }),
   entity('BackupMetadata', { companyCode: 'string', filePath: 'string', checksum: 'string?', schemaVersion: 'int', createdBy: 'string?', valid: 'bool?', verifiedAt: 'date?' }),
-  entity('SystemSetting', { companyCode: 'string', key: 'string', value: 'string?', valueType: 'string?' })
+  entity('SystemSetting', { companyCode: 'string', key: 'string', value: 'string?', valueType: 'string?' }),
+
+  // Newly Added Modules for complete ERP Coverage
+  entity('Employee', { companyCode: 'string', name: 'string', title: 'string?', dept: 'string?', hireDate: 'date?', basicSalary: 'decimal128', allowances: 'decimal128', insurance: 'decimal128', status: 'string?' }),
+  entity('PayrollRun', { companyCode: 'string', number: 'string', period: 'string', totalNet: 'decimal128', lines: 'PayrollLine[]' }),
+  entity('PayrollLine', { empId: 'string', name: 'string', basic: 'decimal128', allow: 'decimal128', ins: 'decimal128', tax: 'decimal128', net: 'decimal128' }, 'id'),
+  entity('FixedAsset', { companyCode: 'string', code: 'string', name: 'string', category: 'string?', acqDate: 'date?', cost: 'decimal128', usefulLife: 'int', method: 'string?' }),
+  entity('Voucher', { companyCode: 'string', number: 'string', type: 'string', date: 'date', party: 'string?', amount: 'decimal128', note: 'string?' }),
+  entity('Warehouse', { companyCode: 'string', code: 'string', name: 'string' }),
+  entity('Quotation', { companyCode: 'string', number: 'string', customerId: 'string?', date: 'date', total: 'decimal128' }),
+  entity('PurchaseOrder', { companyCode: 'string', number: 'string', vendorId: 'string?', date: 'date', total: 'decimal128', status: 'string?' })
 ];
 
 module.exports = { schemas };

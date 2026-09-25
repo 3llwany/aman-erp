@@ -1713,7 +1713,23 @@
               purchases: "PurchaseInvoice",
               treasury_accounts: "Treasury",
               expenses: "Expense",
-              branches: "Branch"
+              branches: "Branch",
+              // Newly integrated modules
+              emps: "Employee",
+              payroll_runs: "PayrollRun",
+              assets: "FixedAsset",
+              vouchers: "Voucher",
+              warehouses: "Warehouse",
+              quotations: "Quotation",
+              purchase_orders: "PurchaseOrder",
+              projects: "Project",
+              rentals: "Rental",
+              installments: "Installment",
+              tasks: "Task",
+              budgets: "Budget",
+              recurring: "RecurringTransaction",
+              costcenters: "CostCenter",
+              production: "ManufacturingOrder"
             };
             const entityName = schemaMap[entityKey];
             if (!entityName) return;
@@ -1724,8 +1740,9 @@
             } else if (Array.isArray(data)) {
               const items = data.map(item => {
                 const mapped = { ...item, companyCode };
-                mapped.id = item.id ? String(item.id) : `id_${Date.now()}_${Math.random().toString(36).substr(2,7)}`;
-                // Ensure required schema fields
+                mapped.id = item.id ? String(item.id) : (item.code ? String(item.code) : `id_${Date.now()}_${Math.random().toString(36).substr(2,7)}`);
+                
+                // Field normalizations per schema
                 if (entityName === "Customer" || entityName === "Vendor") {
                   mapped.number = item.id || item.number || "";
                 } else if (entityName === "Product") {
@@ -1743,6 +1760,54 @@
                 } else if (entityName === "Treasury") {
                   mapped.number = item.id || item.number || "";
                   mapped.balance = item.bal ?? item.balance ?? 0;
+                } else if (entityName === "Employee") {
+                  mapped.basicSalary = item.basic ?? 0;
+                  mapped.allowances = item.allow ?? 0;
+                  mapped.insurance = item.ins ?? 0;
+                  mapped.hireDate = item.hire ? new Date(item.hire) : new Date();
+                } else if (entityName === "PayrollRun") {
+                  mapped.number = item.id || "";
+                  mapped.totalNet = item.totNet ?? 0;
+                } else if (entityName === "FixedAsset") {
+                  mapped.code = item.id || "";
+                  mapped.acqDate = item.date ? new Date(item.date) : new Date();
+                  mapped.usefulLife = item.life ?? 5;
+                } else if (entityName === "Voucher") {
+                  mapped.number = item.id || "";
+                  mapped.date = item.date ? new Date(item.date) : new Date();
+                } else if (entityName === "Warehouse") {
+                  mapped.code = item.id || "";
+                } else if (entityName === "Quotation") {
+                  mapped.number = item.id || "";
+                  mapped.date = item.date ? new Date(item.date) : new Date();
+                } else if (entityName === "PurchaseOrder") {
+                  mapped.number = item.id || "";
+                  mapped.date = item.date ? new Date(item.date) : new Date();
+                } else if (entityName === "Project") {
+                  mapped.number = item.id || "";
+                } else if (entityName === "Rental") {
+                  mapped.number = item.id || "";
+                  mapped.partyId = item.party || "";
+                  mapped.startDate = item.start ? new Date(item.start) : new Date();
+                  mapped.endDate = item.end ? new Date(item.end) : undefined;
+                } else if (entityName === "Installment") {
+                  mapped.number = item.id || "";
+                  mapped.partyType = "customer";
+                  mapped.partyId = item.party || "";
+                } else if (entityName === "Task") {
+                  mapped.number = item.id || "";
+                  mapped.dueDate = item.due ? new Date(item.due) : undefined;
+                } else if (entityName === "Budget") {
+                  mapped.accountCode = item.acc || "";
+                } else if (entityName === "RecurringTransaction") {
+                  mapped.number = item.id || "";
+                  mapped.debitAccountCode = item.drAcc || "";
+                  mapped.creditAccountCode = item.crAcc || "";
+                  mapped.nextRun = item.next ? new Date(item.next) : new Date();
+                } else if (entityName === "ManufacturingOrder") {
+                  mapped.number = item.id || "";
+                  mapped.productId = item.bomId || "";
+                  mapped.quantity = item.qty ?? 1;
                 }
                 return mapped;
               });
@@ -1758,10 +1823,10 @@
       async function runAutoMigrationToRealm() {
         if (!window.amanDesktop || !window.amanDesktop.db) return;
         try {
-          const migratedKey = "aman_realm_migrated_v2";
+          const migratedKey = "aman_realm_migrated_v3";
           if (localStorage.getItem(migratedKey)) return;
 
-          console.log("🚀 Starting initial migration from LocalStorage to Realm Database...");
+          console.log("🚀 Starting comprehensive migration from LocalStorage to Realm Database...");
           
           // 1. Create a safe backup of existing localStorage first
           const allLocalStorage = {};
@@ -1790,7 +1855,22 @@
             purchases: "PurchaseInvoice",
             treasury_accounts: "Treasury",
             expenses: "Expense",
-            branches: "Branch"
+            branches: "Branch",
+            emps: "Employee",
+            payroll_runs: "PayrollRun",
+            assets: "FixedAsset",
+            vouchers: "Voucher",
+            warehouses: "Warehouse",
+            quotations: "Quotation",
+            purchase_orders: "PurchaseOrder",
+            projects: "Project",
+            rentals: "Rental",
+            installments: "Installment",
+            tasks: "Task",
+            budgets: "Budget",
+            recurring: "RecurringTransaction",
+            costcenters: "CostCenter",
+            production: "ManufacturingOrder"
           };
 
           for (const comp of companies) {
@@ -1810,7 +1890,7 @@
                   } else if (Array.isArray(parsed) && parsed.length > 0) {
                     const mapped = parsed.map(item => {
                       const m = { ...item, companyCode: comp.code };
-                      m.id = item.id ? String(item.id) : `id_${Date.now()}_${Math.random().toString(36).substr(2,7)}`;
+                      m.id = item.id ? String(item.id) : (item.code ? String(item.code) : `id_${Date.now()}_${Math.random().toString(36).substr(2,7)}`);
                       if (entityName === "Customer" || entityName === "Vendor") {
                         m.number = item.id || item.number || "";
                       } else if (entityName === "Product") {
@@ -1828,6 +1908,54 @@
                       } else if (entityName === "Treasury") {
                         m.number = item.id || item.number || "";
                         m.balance = item.bal ?? item.balance ?? 0;
+                      } else if (entityName === "Employee") {
+                        m.basicSalary = item.basic ?? 0;
+                        m.allowances = item.allow ?? 0;
+                        m.insurance = item.ins ?? 0;
+                        m.hireDate = item.hire ? new Date(item.hire) : new Date();
+                      } else if (entityName === "PayrollRun") {
+                        m.number = item.id || "";
+                        m.totalNet = item.totNet ?? 0;
+                      } else if (entityName === "FixedAsset") {
+                        m.code = item.id || "";
+                        m.acqDate = item.date ? new Date(item.date) : new Date();
+                        m.usefulLife = item.life ?? 5;
+                      } else if (entityName === "Voucher") {
+                        m.number = item.id || "";
+                        m.date = item.date ? new Date(item.date) : new Date();
+                      } else if (entityName === "Warehouse") {
+                        m.code = item.id || "";
+                      } else if (entityName === "Quotation") {
+                        m.number = item.id || "";
+                        m.date = item.date ? new Date(item.date) : new Date();
+                      } else if (entityName === "PurchaseOrder") {
+                        m.number = item.id || "";
+                        m.date = item.date ? new Date(item.date) : new Date();
+                      } else if (entityName === "Project") {
+                        m.number = item.id || "";
+                      } else if (entityName === "Rental") {
+                        m.number = item.id || "";
+                        m.partyId = item.party || "";
+                        m.startDate = item.start ? new Date(item.start) : new Date();
+                        m.endDate = item.end ? new Date(item.end) : undefined;
+                      } else if (entityName === "Installment") {
+                        m.number = item.id || "";
+                        m.partyType = "customer";
+                        m.partyId = item.party || "";
+                      } else if (entityName === "Task") {
+                        m.number = item.id || "";
+                        m.dueDate = item.due ? new Date(item.due) : undefined;
+                      } else if (entityName === "Budget") {
+                        m.accountCode = item.acc || "";
+                      } else if (entityName === "RecurringTransaction") {
+                        m.number = item.id || "";
+                        m.debitAccountCode = item.drAcc || "";
+                        m.creditAccountCode = item.crAcc || "";
+                        m.nextRun = item.next ? new Date(item.next) : new Date();
+                      } else if (entityName === "ManufacturingOrder") {
+                        m.number = item.id || "";
+                        m.productId = item.bomId || "";
+                        m.quantity = item.qty ?? 1;
                       }
                       return m;
                     });
@@ -1841,7 +1969,7 @@
           }
 
           localStorage.setItem(migratedKey, new Date().toISOString());
-          console.log("✅ Realm Database migration completed successfully!");
+          console.log("✅ Comprehensive Realm Database migration completed successfully!");
         } catch (err) {
           console.error("Migration error:", err);
         }
