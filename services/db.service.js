@@ -1,3 +1,4 @@
+const Realm = require('realm');
 const { openRealm } = require('../database/realm');
 
 let realmInstance = null;
@@ -38,14 +39,16 @@ function normalizePayload(schema, data) {
     const typeStr = typeof propDef === 'string' ? propDef : (propDef.type || '');
 
     if (rawVal === undefined || rawVal === null) {
-      // If optional, set null/undefined; if required string, default to ''
       if (!typeStr.endsWith('?') && typeStr === 'string') {
         normalized[key] = '';
       }
       continue;
     }
 
-    if (typeStr.includes('decimal128') || typeStr.includes('double') || typeStr.includes('float')) {
+    if (typeStr.includes('decimal128')) {
+      const num = Number(rawVal);
+      normalized[key] = Realm.BSON.Decimal128.fromString(isNaN(num) ? '0' : String(num));
+    } else if (typeStr.includes('double') || typeStr.includes('float')) {
       const num = Number(rawVal);
       normalized[key] = isNaN(num) ? 0 : num;
     } else if (typeStr.includes('date')) {
@@ -58,6 +61,23 @@ function normalizePayload(schema, data) {
       normalized[key] = Boolean(rawVal);
     } else if (typeStr.includes('string')) {
       normalized[key] = String(rawVal);
+    } else if (Array.isArray(rawVal) && typeStr.endsWith('[]')) {
+      // Handle nested object arrays like lines: JournalLine[] or SalesInvoiceLine[]
+      const subTypeName = typeStr.replace('[]', '');
+      normalized[key] = rawVal.map(subItem => {
+        if (typeof subItem === 'object' && subItem !== null) {
+          const subObj = { ...subItem };
+          subObj.id = subObj.id ? String(subObj.id) : `sub_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
+          for (const [sK, sV] of Object.entries(subObj)) {
+            if (sK === 'debit' || sK === 'credit' || sK === 'quantity' || sK === 'unitPrice' || sK === 'discount' || sK === 'taxRate' || sK === 'netAmount' || sK === 'taxAmount' || sK === 'total') {
+              const n = Number(sV);
+              subObj[sK] = Realm.BSON.Decimal128.fromString(isNaN(n) ? '0' : String(n));
+            }
+          }
+          return subObj;
+        }
+        return subItem;
+      });
     } else {
       normalized[key] = rawVal;
     }

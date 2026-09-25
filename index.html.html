@@ -1745,6 +1745,21 @@
                 // Field normalizations per schema
                 if (entityName === "Customer" || entityName === "Vendor") {
                   mapped.number = item.id || item.number || "";
+                } else if (entityName === "JournalEntry") {
+                  mapped.number = item.id || item.number || "";
+                  mapped.accountingDate = item.date ? new Date(item.date) : new Date();
+                  mapped.description = item.desc || "";
+                  mapped.totalDebit = item.dr ?? 0;
+                  mapped.totalCredit = item.cr ?? 0;
+                  mapped.status = item.status || "posted";
+                  mapped.lines = (item.lines || []).map(l => ({
+                    id: `jl_${Date.now()}_${Math.random().toString(36).substr(2,7)}`,
+                    accountCode: l.accCode || "",
+                    accountName: l.accName || "",
+                    debit: l.dr ?? 0,
+                    credit: l.cr ?? 0,
+                    description: l.desc || ""
+                  }));
                 } else if (entityName === "Product") {
                   mapped.number = item.sku || item.id || "";
                   mapped.quantity = item.qty ?? item.quantity ?? 0;
@@ -1823,7 +1838,7 @@
       async function runAutoMigrationToRealm() {
         if (!window.amanDesktop || !window.amanDesktop.db) return;
         try {
-          const migratedKey = "aman_realm_migrated_v3";
+          const migratedKey = "aman_realm_migrated_v4";
           if (localStorage.getItem(migratedKey)) return;
 
           console.log("🚀 Starting comprehensive migration from LocalStorage to Realm Database...");
@@ -1893,6 +1908,21 @@
                       m.id = item.id ? String(item.id) : (item.code ? String(item.code) : `id_${Date.now()}_${Math.random().toString(36).substr(2,7)}`);
                       if (entityName === "Customer" || entityName === "Vendor") {
                         m.number = item.id || item.number || "";
+                      } else if (entityName === "JournalEntry") {
+                        m.number = item.id || item.number || "";
+                        m.accountingDate = item.date ? new Date(item.date) : new Date();
+                        m.description = item.desc || "";
+                        m.totalDebit = item.dr ?? 0;
+                        m.totalCredit = item.cr ?? 0;
+                        m.status = item.status || "posted";
+                        m.lines = (item.lines || []).map(l => ({
+                          id: `jl_${Date.now()}_${Math.random().toString(36).substr(2,7)}`,
+                          accountCode: l.accCode || "",
+                          accountName: l.accName || "",
+                          debit: l.dr ?? 0,
+                          credit: l.cr ?? 0,
+                          description: l.desc || ""
+                        }));
                       } else if (entityName === "Product") {
                         m.number = item.sku || item.id || "";
                         m.quantity = item.qty ?? item.quantity ?? 0;
