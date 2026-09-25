@@ -1665,6 +1665,8 @@
           ? "erp4_"
           : "erp_" + S.company.code + "_";
       }
+
+      /* Unified Storage Engine (LocalStorage + Electron Realm DB Sync) */
       const DB = {
         g(k, d) {
           try {
@@ -1677,9 +1679,13 @@
         s(k, v) {
           localStorage.setItem(pfx() + k, JSON.stringify(v));
           bcast(k);
+          DB.syncToRealm(k, v);
         },
         del(k) {
           localStorage.removeItem(pfx() + k);
+          if (window.amanDesktop && window.amanDesktop.db) {
+            // Background cleanup if supported
+          }
         },
         exportAll() {
           const o = {},
@@ -1691,7 +1697,118 @@
           }
           return o;
         },
+        async syncToRealm(entityKey, data) {
+          if (!window.amanDesktop || !window.amanDesktop.db || !S.company) return;
+          try {
+            const companyCode = S.company.code;
+            const schemaMap = {
+              company: "Company",
+              users: "User",
+              accounts: "Account",
+              journal: "JournalEntry",
+              customers: "Customer",
+              vendors: "Vendor",
+              products: "Product",
+              inv_sales: "SalesInvoice",
+              inv_purch: "PurchaseInvoice",
+              treasuries: "Treasury",
+              expenses: "Expense",
+              branches: "Branch"
+            };
+            const entityName = schemaMap[entityKey];
+            if (!entityName) return;
+
+            if (entityKey === "company") {
+              const compData = { ...data, companyCode, code: companyCode, id: "comp_" + companyCode };
+              await window.amanDesktop.db.create(entityName, compData);
+            } else if (Array.isArray(data)) {
+              const items = data.map(item => ({
+                ...item,
+                companyCode,
+                id: item.id ? String(item.id) : (item.number ? `${companyCode}_${item.number}` : undefined)
+              }));
+              await window.amanDesktop.db.bulkInsert(entityName, items);
+            }
+          } catch (err) {
+            console.warn("[Realm Sync Warning]", entityKey, err);
+          }
+        }
       };
+
+      // Automatic Migration from localStorage to Realm DB on boot
+      async function runAutoMigrationToRealm() {
+        if (!window.amanDesktop || !window.amanDesktop.db) return;
+        try {
+          const migratedKey = "aman_realm_migrated_v1";
+          if (localStorage.getItem(migratedKey)) return;
+
+          console.log("🚀 Starting initial migration from LocalStorage to Realm Database...");
+          
+          // 1. Create a safe backup of existing localStorage first
+          const allLocalStorage = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            allLocalStorage[k] = localStorage.getItem(k);
+          }
+          await window.amanDesktop.db.backupLegacy(allLocalStorage);
+
+          // 2. Discover all companies in localStorage
+          const regRaw = localStorage.getItem(GK) || "[]";
+          const companies = JSON.parse(regRaw);
+          if (!companies.some(c => c.code === "LEGACY")) {
+            companies.push({ code: "LEGACY", name: "Legacy Data" });
+          }
+
+          const schemaMap = {
+            company: "Company",
+            users: "User",
+            accounts: "Account",
+            journal: "JournalEntry",
+            customers: "Customer",
+            vendors: "Vendor",
+            products: "Product",
+            inv_sales: "SalesInvoice",
+            inv_purch: "PurchaseInvoice",
+            treasuries: "Treasury",
+            expenses: "Expense",
+            branches: "Branch"
+          };
+
+          for (const comp of companies) {
+            const prefix = comp.code === "LEGACY" ? "erp4_" : "erp_" + comp.code + "_";
+            for (const [key, entityName] of Object.entries(schemaMap)) {
+              const raw = localStorage.getItem(prefix + key);
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw);
+                  if (key === "company") {
+                    await window.amanDesktop.db.create(entityName, {
+                      ...parsed,
+                      companyCode: comp.code,
+                      code: comp.code,
+                      id: "comp_" + comp.code
+                    });
+                  } else if (Array.isArray(parsed) && parsed.length > 0) {
+                    const mapped = parsed.map(item => ({
+                      ...item,
+                      companyCode: comp.code,
+                      id: item.id ? String(item.id) : (item.number ? `${comp.code}_${item.number}` : undefined)
+                    }));
+                    await window.amanDesktop.db.bulkInsert(entityName, mapped);
+                  }
+                } catch (e) {
+                  console.warn("Migration item skipped:", key, e);
+                }
+              }
+            }
+          }
+
+          localStorage.setItem(migratedKey, new Date().toISOString());
+          console.log("✅ Realm Database migration completed successfully!");
+        } catch (err) {
+          console.error("Migration error:", err);
+        }
+      }
       function bcast(k) {
         try {
           BC && BC.postMessage({ k, ts: Date.now(), u: S.user && S.user.id });
@@ -7491,7 +7608,10 @@
 
       /* ---------------- Init ---------------- */
       applyLangDir();
-      (function () {
+      (async function () {
+        if (window.amanDesktop) {
+          await runAutoMigrationToRealm();
+        }
         const sess = sessionStorage.getItem("ge_sess");
         if (sess) {
           try {
