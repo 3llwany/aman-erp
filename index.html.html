@@ -1708,10 +1708,10 @@
               journal: "JournalEntry",
               customers: "Customer",
               vendors: "Vendor",
-              products: "Product",
-              inv_sales: "SalesInvoice",
-              inv_purch: "PurchaseInvoice",
-              treasuries: "Treasury",
+              inv: "Product",
+              sales: "SalesInvoice",
+              purchases: "PurchaseInvoice",
+              treasury_accounts: "Treasury",
               expenses: "Expense",
               branches: "Branch"
             };
@@ -1722,11 +1722,30 @@
               const compData = { ...data, companyCode, code: companyCode, id: "comp_" + companyCode };
               await window.amanDesktop.db.create(entityName, compData);
             } else if (Array.isArray(data)) {
-              const items = data.map(item => ({
-                ...item,
-                companyCode,
-                id: item.id ? String(item.id) : (item.number ? `${companyCode}_${item.number}` : undefined)
-              }));
+              const items = data.map(item => {
+                const mapped = { ...item, companyCode };
+                mapped.id = item.id ? String(item.id) : `id_${Date.now()}_${Math.random().toString(36).substr(2,7)}`;
+                // Ensure required schema fields
+                if (entityName === "Customer" || entityName === "Vendor") {
+                  mapped.number = item.id || item.number || "";
+                } else if (entityName === "Product") {
+                  mapped.number = item.sku || item.id || "";
+                  mapped.quantity = item.qty ?? item.quantity ?? 0;
+                  mapped.minQuantity = item.min ?? item.minQuantity ?? 0;
+                } else if (entityName === "SalesInvoice" || entityName === "PurchaseInvoice") {
+                  mapped.number = item.id || item.number || "";
+                  mapped.customerId = item.custId || "";
+                  mapped.vendorId = item.vendId || "";
+                  mapped.subtotal = item.sub ?? item.subtotal ?? 0;
+                  mapped.tax = item.vat ?? item.tax ?? 0;
+                  mapped.accountingDate = item.date ? new Date(item.date) : new Date();
+                  mapped.status = item.status || "completed";
+                } else if (entityName === "Treasury") {
+                  mapped.number = item.id || item.number || "";
+                  mapped.balance = item.bal ?? item.balance ?? 0;
+                }
+                return mapped;
+              });
               await window.amanDesktop.db.bulkInsert(entityName, items);
             }
           } catch (err) {
@@ -1739,7 +1758,7 @@
       async function runAutoMigrationToRealm() {
         if (!window.amanDesktop || !window.amanDesktop.db) return;
         try {
-          const migratedKey = "aman_realm_migrated_v1";
+          const migratedKey = "aman_realm_migrated_v2";
           if (localStorage.getItem(migratedKey)) return;
 
           console.log("🚀 Starting initial migration from LocalStorage to Realm Database...");
@@ -1766,10 +1785,10 @@
             journal: "JournalEntry",
             customers: "Customer",
             vendors: "Vendor",
-            products: "Product",
-            inv_sales: "SalesInvoice",
-            inv_purch: "PurchaseInvoice",
-            treasuries: "Treasury",
+            inv: "Product",
+            sales: "SalesInvoice",
+            purchases: "PurchaseInvoice",
+            treasury_accounts: "Treasury",
             expenses: "Expense",
             branches: "Branch"
           };
@@ -1789,11 +1808,29 @@
                       id: "comp_" + comp.code
                     });
                   } else if (Array.isArray(parsed) && parsed.length > 0) {
-                    const mapped = parsed.map(item => ({
-                      ...item,
-                      companyCode: comp.code,
-                      id: item.id ? String(item.id) : (item.number ? `${comp.code}_${item.number}` : undefined)
-                    }));
+                    const mapped = parsed.map(item => {
+                      const m = { ...item, companyCode: comp.code };
+                      m.id = item.id ? String(item.id) : `id_${Date.now()}_${Math.random().toString(36).substr(2,7)}`;
+                      if (entityName === "Customer" || entityName === "Vendor") {
+                        m.number = item.id || item.number || "";
+                      } else if (entityName === "Product") {
+                        m.number = item.sku || item.id || "";
+                        m.quantity = item.qty ?? item.quantity ?? 0;
+                        m.minQuantity = item.min ?? item.minQuantity ?? 0;
+                      } else if (entityName === "SalesInvoice" || entityName === "PurchaseInvoice") {
+                        m.number = item.id || item.number || "";
+                        m.customerId = item.custId || "";
+                        m.vendorId = item.vendId || "";
+                        m.subtotal = item.sub ?? item.subtotal ?? 0;
+                        m.tax = item.vat ?? item.tax ?? 0;
+                        m.accountingDate = item.date ? new Date(item.date) : new Date();
+                        m.status = item.status || "completed";
+                      } else if (entityName === "Treasury") {
+                        m.number = item.id || item.number || "";
+                        m.balance = item.bal ?? item.balance ?? 0;
+                      }
+                      return m;
+                    });
                     await window.amanDesktop.db.bulkInsert(entityName, mapped);
                   }
                 } catch (e) {
